@@ -1,6 +1,6 @@
 # Event study graphs in stata 
 <figure style="float:left;">
-<img src="https://github.com/hollina/event_study_graphs/event-study.png" align="center"  width="400"  /> 
+<img src="https://github.com/hollina/event_study_graphs/blob/master/event-study.png" align="center"  width="400"  /> 
 </figure>
 
 This is an example function of how to make an event study graph in stata. 
