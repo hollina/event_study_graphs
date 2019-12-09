@@ -1,7 +1,9 @@
 # Event study graphs in stata 
+
 <figure style="float:left;">
-<img src="https://github.com/hollina/event_study_graphs/blob/master/event-study.png" align="center"  width="400"  /> 
+<img src="https://github.com/hollina/event_study_graphs/blob/master/event-study.png" align="middle"  width="600"  /> 
 </figure>
+
 
 This is an example function of how to make an event study graph in stata. 
 
@@ -11,5 +13,8 @@ The divorce data come from Stevenson and Wolfers 2006, <http://users.nber.org/~j
 
 Feel free to edit/use as you please. 
 
+<figure style="float:right;">
+<img src="https://github.com/hollina/event_study_graphs/blob/master/event-study-wolfers.png" align="middle"  width="600"  /> 
+</figure>
 
 
