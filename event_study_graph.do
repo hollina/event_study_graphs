@@ -53,6 +53,11 @@ syntax, ///
 		local dd_control_list ""
 	}
 	
+	if "`control_list'" == "none" {
+		local control_list ""
+	}
+	
+	
 	* gen event-time (adoption_date = treatment adoption date )
 	gen event_time_bacon = year - year_treated
 
