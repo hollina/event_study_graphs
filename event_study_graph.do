@@ -1,16 +1,16 @@
 // state is treated units
-// year is time variable
-// year_treated is date of treatment 
+// time is time variable
+// time_treated is date of treatment 
 // treated is ever_treated x post_treatment
 
 
 capture program drop create_event_study_graph
 program create_event_study_graph, 
 syntax, ///
-	first_year(real) ///
-	last_year(real) ///
-	first_treated_year(real) ///
-	last_treated_year(real) ///
+	first_time(real) ///
+	last_time(real) ///
+	first_treated_time(real) ///
+	last_treated_time(real) ///
 	low_event_cap(real) ///
 	high_event_cap(real) ///
 	low_event_cap_graph(real) ///
@@ -24,20 +24,22 @@ syntax, ///
 	x_lab_step_size(real) ///
 	y_label(string) ///
 	graph_label(string) ///
-	output_file_name(string) 
+	output_file_name(string) ///
+	time_variable(string)
 
 	////////////////////////////////////////////////////////////////////////////
 	// Set up timing variables
 	
-	capture confirm variable year_treated
+	capture confirm variable time_treated
 	if !_rc {
-		di "year_treated exists"
+		di "time_treated exists"
 	}
 	else {
-		*Make an adoption year variable.
-		capture drop exp_year
-		gen exp_year = year if ever_treated == 1
-		egen year_treated = min(exp_year), by(state)
+		*Make an adoption time variable.
+		capture drop temp_time
+		gen temp_time = `time_variable' if ever_treated == 1
+		egen time_treated = min(temp_time), by(state)
+		drop temp_time
 	}
 	
 	
@@ -59,7 +61,7 @@ syntax, ///
 	
 	
 	* gen event-time (adoption_date = treatment adoption date )
-	gen event_time_bacon = year - year_treated
+	gen event_time_bacon = `time_variable' - time_treated
 
 	* make sure untreated units are included, but also don't get dummies (by giving them "-1")
 	recode event_time_bacon (.=-1) (-1000/`low_event_cap'=`low_event_cap') (`high_event_cap'/1000=`high_event_cap')
@@ -71,23 +73,23 @@ syntax, ///
 	xi i.event_time_bacon, pref(_T)
 
 	* Position of -2
-	if `low_event_cap' > ( `first_year' - `last_treated_year') {
+	if `low_event_cap' > ( `first_time' - `last_treated_time') {
 	 local pos_of_neg_2 = abs(2 - (-`low_event_cap' + 1))
 	}	
 
-	if `low_event_cap' <= ( `first_year' - `last_treated_year') {
-	 local pos_of_neg_2 = abs(2 - (-( `first_year' - `last_treated_year') + 1))
+	if `low_event_cap' <= ( `first_time' - `last_treated_time') {
+	 local pos_of_neg_2 = abs(2 - (-( `first_time' - `last_treated_time') + 1))
 	}
 
 	* Position of 0
 	local pos_of_zero = `pos_of_neg_2' + 2
 
 	* Position of max
-	if `high_event_cap' >= ( `last_year' - `first_treated_year') {
-	 local pos_of_max = `last_year' - `first_treated_year' + `pos_of_zero'
+	if `high_event_cap' >= ( `last_time' - `first_treated_time') {
+	 local pos_of_max = `last_time' - `first_treated_time' + `pos_of_zero'
 	}	
 
-	if `high_event_cap' < ( `last_year' - `first_treated_year') {
+	if `high_event_cap' < ( `last_time' - `first_treated_time') {
 	 local pos_of_max = `high_event_cap' + `pos_of_zero'
 	}
 	
@@ -214,9 +216,9 @@ gen ever_treated = 0
 replace ever_treated = 1 if random_draw > .75
 drop random_draw
 
-// Generate year treated 
-gen year_treated  = ceil(24 * uniform()) + 1979
-replace year_treated = . if ever_treated == 0
+// Generate time treated 
+gen time_treated  = ceil(24 * uniform()) + 1979
+replace time_treated = . if ever_treated == 0
 
 // Generate state component 
 gen state_portion = rnormal()
@@ -224,30 +226,30 @@ gen state_portion = rnormal()
 // Expand dataset
 expand 24
 
-// Generate year 
-bysort state: gen year = _n + 1979
-sort state year
+// Generate time 
+bysort state: gen time = _n + 1979
+sort state time
 
 // Generate treated
 gen treated = 0 
-replace treated = 1 if year >= year_treated & ever_treated == 1
+replace treated = 1 if time >= time_treated & ever_treated == 1
 
-// Gen year portion 
-gen year_portion = runiform()
-bysort year: replace year_portion = year_portion[1]
+// Gen time portion 
+gen time_portion = runiform()
+bysort time: replace time_portion = time_portion[1]
 
 // Gen control variable 
 gen x = rnormal()
 
 // Gen y 
-gen y = 1.2 + 2*treated + .2*x + 3*state_portion + 2*year_portion + rnormal()
+gen y = 1.2 + 2*treated + .2*x + 3*state_portion + 2*time_portion + rnormal()
 
 
 create_event_study_graph, ///
-	first_year(1980) ///
-	last_year(2003) ///
-	first_treated_year(1982) ///
-	last_treated_year(2003) ///
+	first_time(1980) ///
+	last_time(2003) ///
+	first_treated_time(1982) ///
+	last_treated_time(2003) ///
 	low_event_cap(-11) ///
 	high_event_cap(11) ///
 	low_event_cap_graph(-10) ///
@@ -255,13 +257,15 @@ create_event_study_graph, ///
 	y_var(y) ///
 	dd_control_list(none) ///
 	control_list(x) ///
-	fixed_effects("state year") ///
+	fixed_effects("state time") ///
 	cluster_var("state") ///
 	x_label("Years since treatment") ///
 	x_lab_step_size(2) ///
 	y_label("Y-variable") ///
 	graph_label("Event study estimates with imposed treatment effect of 2 at t = 0") ///
-	output_file_name("event-study") 
+	output_file_name("event-study") ///
+	time_variable(time)
+	
 
 ////////////////////////////////////////////////////////////////////////////////
 // Run test data 
@@ -286,14 +290,14 @@ gen treated = 0
 replace treated = 1 if post == 1 & ever_treated == 1
 
 // Rename divyear to year_treated
-rename divyear year_treated
+rename divyear time_treated
 
 
 create_event_study_graph, ///
-	first_year(1960) ///
-	last_year(1996) ///
-	first_treated_year(1950) ///
-	last_treated_year(2000) ///
+	first_time(1960) ///
+	last_time(1996) ///
+	first_treated_time(1950) ///
+	last_treated_time(2000) ///
 	low_event_cap(-11) ///
 	high_event_cap(21) ///
 	low_event_cap_graph(-10) ///
@@ -307,5 +311,6 @@ create_event_study_graph, ///
 	x_lab_step_size(5) ///
 	y_label("Aggregate suicide rate") ///
 	graph_label("Change in suicide rate by years since law change") ///
-	output_file_name("event-study-wolfers")
+	output_file_name("event-study-wolfers") ///
+	time_variable(year)
 	
