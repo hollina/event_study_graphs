@@ -1,198 +1,12 @@
-// state is treated units
-// time is time variable
-// time_treated is date of treatment 
-// treated is ever_treated x post_treatment
 
-
-capture program drop create_event_study_graph
-program create_event_study_graph, 
-syntax, ///
-	first_time(real) ///
-	last_time(real) ///
-	first_treated_time(real) ///
-	last_treated_time(real) ///
-	low_event_cap(real) ///
-	high_event_cap(real) ///
-	low_event_cap_graph(real) ///
-	high_event_cap_graph(real) ///
-	y_var(string) ///
-	dd_control_list(string) ///
-	control_list(string) ///
-	fixed_effects(string) ///
-	cluster_var(string) ///
-	x_label(string) ///
-	x_lab_step_size(real) ///
-	y_label(string) ///
-	graph_label(string) ///
-	output_file_name(string) ///
-	time_variable(string)
-
-	////////////////////////////////////////////////////////////////////////////
-	// Set up timing variables
-	
-	capture confirm variable time_treated
-	if !_rc {
-		di "time_treated exists"
-	}
-	else {
-		*Make an adoption time variable.
-		capture drop temp_time
-		gen temp_time = `time_variable' if ever_treated == 1
-		egen time_treated = min(temp_time), by(state)
-		drop temp_time
-	}
-	
-	
-	capture confirm variable post
-	if !_rc {
-		di in red "post"
-	}
-	else {
-		di in red "post does not exist"
-	}
-	
-	if "`dd_control_list'" == "none" {
-		local dd_control_list ""
-	}
-	
-	if "`control_list'" == "none" {
-		local control_list ""
-	}
-	
-	
-	* gen event-time (adoption_date = treatment adoption date )
-	gen event_time_bacon = `time_variable' - time_treated
-
-	* make sure untreated units are included, but also don't get dummies (by giving them "-1")
-	recode event_time_bacon (.=-1) (-1000/`low_event_cap'=`low_event_cap') (`high_event_cap'/1000=`high_event_cap')
-
-	*ensure that "xi" omits -1
-	char event_time_bacon[omit] -1
-
-	*mak dummies
-	xi i.event_time_bacon, pref(_T)
-
-	* Position of -2
-	if `low_event_cap' > ( `first_time' - `last_treated_time') {
-	 local pos_of_neg_2 = abs(2 - (-`low_event_cap' + 1))
-	}	
-
-	if `low_event_cap' <= ( `first_time' - `last_treated_time') {
-	 local pos_of_neg_2 = abs(2 - (-( `first_time' - `last_treated_time') + 1))
-	}
-
-	* Position of 0
-	local pos_of_zero = `pos_of_neg_2' + 2
-
-	* Position of max
-	if `high_event_cap' >= ( `last_time' - `first_treated_time') {
-	 local pos_of_max = `last_time' - `first_treated_time' + `pos_of_zero'
-	}	
-
-	if `high_event_cap' < ( `last_time' - `first_treated_time') {
-	 local pos_of_max = `high_event_cap' + `pos_of_zero'
-	}
-	
-	////////////////////////////////////////////////////////////////////////////
-	// Run DD regression
-	reghdfe `y_var' ///
-		treated ///
-		`dd_control_list' ///
-		`control_list' ///
-	, absorb(`fixed_effects') cluster(`cluster_var')
-	
-	// Store DD Coefs and 95% CI and p-value
-
-	
-	/////////////////////////////////////////////////////////////////////////////
-	// Run event-study regression
-	reghdfe `y_var' ///
-		_T* ///
-		`control_list' ///
-		`dd_control_list' ///
-	, absorb(`fixed_effects') cluster(`cluster_var')
-
-	// Store estimates
-	capture drop order
-	capture drop b 
-	capture drop high 
-	capture drop low
-
-	gen order = .
-	gen b =. 
-	gen high =. 
-	gen low =.
-	
-	* Graph start position
-	local graph_start  = `low_event_cap_graph' - `low_event_cap' + 1
-	
-	* Position of -2
-	local pos_of_neg_2 = abs(2 - (-`low_event_cap' + 1))
-
-	* Position of 0
-	local pos_of_zero = `pos_of_neg_2' + 2
-
-	* Position of max
-	 local pos_of_max = `high_event_cap_graph' + `pos_of_zero'
-	
-	
-	local i = 1
-	
-	forvalues j = `graph_start'(1)`pos_of_neg_2'{
-		local event_time = `j' - 2 -  `pos_of_neg_2'
-		
-		replace order = `event_time' in `i'
-		
-		replace b    = _b[_Tevent_tim_`j'] in `i'
-		replace high = _b[_Tevent_tim_`j'] + 1.96*_se[_Tevent_tim_`j'] in `i'
-		replace low  = _b[_Tevent_tim_`j'] - 1.96*_se[_Tevent_tim_`j'] in `i'
-			
-		local i = `i' + 1
-	}
-
-	replace order = -1 in `i'
-
-	replace b    = 0  in `i'
-	replace high = 0  in `i'
-	replace low  = 0  in `i'
-
-	local i = `i' + 1
-
-	forvalues j = `pos_of_zero'(1)`pos_of_max'{
-		local event_time = `j' - 2 -  `pos_of_neg_2'
-
-		replace order = `event_time' in `i'
-		
-		replace b    = _b[_Tevent_tim_`j'] in `i'
-		replace high = _b[_Tevent_tim_`j'] + 1.96*_se[_Tevent_tim_`j'] in `i'
-		replace low  = _b[_Tevent_tim_`j'] - 1.96*_se[_Tevent_tim_`j'] in `i'
-			
-			
-		local i = `i' + 1
-	}
-	
-	// Plot estimates	
-	twoway rarea low high order if order <= `high_event_cap_graph' & order >= `low_event_cap_graph' , fcol(gs14) lcol(white) msize(3) /// estimates
-		|| connected b order if order <= `high_event_cap_graph' & order >= `low_event_cap_graph', lw(1.1) col(white) msize(7) msymbol(s) lp(solid) /// highlighting
-		|| connected b order if order <= `high_event_cap_graph' & order >= `low_event_cap_graph', lw(0.6) col("71 71 179") msize(5) msymbol(s) lp(solid) /// connect estimates
-		|| scatteri 0 `low_event_cap_graph' 0 `high_event_cap_graph', recast(line) lcol(gs8) lp(longdash) lwidth(0.5) /// zero line 
-			xlab(`low_event_cap_graph'(`x_lab_step_size')`high_event_cap_graph' ///
-					, nogrid labsize(7) angle(0)) ///
-			ylab(, nogrid labs(7)) ///
-			legend(off) ///
-			xtitle("`x_label'", size(5)) ///
-			ytitle("`y_label'", size(5)) ///
-			subtitle("`graph_label'", size(5) pos(11)) ///
-			xline(-.5, lpattern(dash) lcolor(gs7) lwidth(1)) 	
-			
-	// Save graph
-	graph export "`output_file_name'.png", replace
-
-end
 ////////////////////////////////////////////////////////////////////////////////
 // Change directory
 
 cd "~/Documents/GitHub/event_study_graphs/"
+
+///////////////////////////////////////////////////////////////////////////////
+// Import program for event study
+do "event_study_program.do"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,8 +59,11 @@ gen x = rnormal()
 gen y = 1.2 + 2*treated + .2*x + 3*state_portion + 2*time_portion + rnormal()
 
 
+///////////////////////////////////////////////////////////////////////////////
+// Create event study graph
+
 create_event_study_graph, ///
-	first_time(1980) ///
+	first_time(1990) ///
 	last_time(2003) ///
 	first_treated_time(1982) ///
 	last_treated_time(2003) ///
@@ -264,7 +81,40 @@ create_event_study_graph, ///
 	y_label("Y-variable") ///
 	graph_label("Event study estimates with imposed treatment effect of 2 at t = 0") ///
 	output_file_name("event-study") ///
-	time_variable(time)
+	time_variable(time) ///
+	id_variable(state) ///
+	weight_var(none)
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Create event study graph after dropping event times
+
+drop if event_time_bacon == -1 | event_time_bacon == 0 | event_time_bacon == 9
+drop if event_time_bacon >= -8 &  event_time_bacon <= -3
+keep state ever_treated time_treated state_portion time treated time_portion x y
+
+create_event_study_graph, ///
+	first_time(1990) ///
+	last_time(2003) ///
+	first_treated_time(1982) ///
+	last_treated_time(2003) ///
+	low_event_cap(-11) ///
+	high_event_cap(11) ///
+	low_event_cap_graph(-10) ///
+	high_event_cap_graph(10) ///
+	y_var(y) ///
+	dd_control_list(none) ///
+	control_list(x) ///
+	fixed_effects("state time") ///
+	cluster_var("state") ///
+	x_label("Years since treatment") ///
+	x_lab_step_size(2) ///
+	y_label("Y-variable") ///
+	graph_label("Event study estimates with imposed treatment effect of 2 at t = 0") ///
+	output_file_name("event-study-missing-data") ///
+	time_variable(time) ///
+	id_variable(state) ///
+	weight_var(none)
 	
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -290,8 +140,7 @@ gen treated = 0
 replace treated = 1 if post == 1 & ever_treated == 1
 
 // Rename divyear to year_treated
-rename divyear time_treated
-
+rename divyear time_treated	
 
 create_event_study_graph, ///
 	first_time(1960) ///
@@ -312,5 +161,7 @@ create_event_study_graph, ///
 	y_label("Aggregate suicide rate") ///
 	graph_label("Change in suicide rate by years since law change") ///
 	output_file_name("event-study-wolfers") ///
-	time_variable(year)
+	time_variable(year) ///
+	id_variable(st) ///
+	weight_var(none)
 	
