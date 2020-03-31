@@ -7,6 +7,7 @@ cd "~/Documents/GitHub/event_study_graphs/"
 ///////////////////////////////////////////////////////////////////////////////
 // Import program for event study
 do "event_study_program.do"
+do "unique_treated_units_by_time_program.do"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,8 +85,21 @@ create_event_study_graph, ///
 	time_variable(time) ///
 	id_variable(state) ///
 	weight_var(none)
+	
+	
+create_unique_treat_by_yr_graph, ///
+	low_event_cap(-11) ///
+	high_event_cap(10) ///
+	y_var(y) ///
+	x_label("test") ///
+	x_lab_step_size(2) ///
+	y_label("test-y") ///
+	graph_label("none") ///
+	output_file_name("common-support") ///
+	time_variable(time) ///
+	id_variable(state) 
 
-
+exit
 ///////////////////////////////////////////////////////////////////////////////
 // Create event study graph after dropping event times
 
