@@ -315,9 +315,16 @@ plot_event_study <- function(event_study_results, high_cap, low_cap, breaks, plo
 event_study_plot <- plot_event_study(event_study_results = event_study_results,
                                      low_cap = -10,
                                      high_cap = 20,
-                                     breaks = 1, 
-                                     plot_title = "Event study estimates", 
-                                     x_title = "Years since law adoption", 
-                                     plot_subtitle = "Effect on divorce rate")
+                                     breaks = 5, 
+                                     plot_title = "Change in suicide rate by years since law change", 
+                                     x_title = "Years since unilateral divorce law", 
+                                     plot_subtitle = "Aggregate suicide rate")
 
-event_study_plot
+
+
+ggsave(filename = "~/Documents/GitHub/event_study_graphs/event-study-wolfers-in-R.pdf", 
+       plot = event_study_plot, 
+       width = 8, 
+       height = 6)
+
+
